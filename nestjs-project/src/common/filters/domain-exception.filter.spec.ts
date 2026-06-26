@@ -7,6 +7,11 @@ import {
   InvalidTokenException,
   TokenExpiredException,
   TokenReuseDetectedException,
+  VideoNotFoundException,
+  VideoAccessDeniedException,
+  VideoNotReadyException,
+  InvalidVideoStateException,
+  UploadTooLargeException,
 } from '../exceptions/domain.exception';
 
 describe('DomainExceptionFilter', () => {
@@ -95,6 +100,61 @@ describe('DomainExceptionFilter', () => {
     expect(mockJson).toHaveBeenCalledWith({
       statusCode: 401,
       error: 'TOKEN_REUSE_DETECTED',
+      message: expect.any(String),
+    });
+  });
+
+  it('maps VideoNotFoundException to 404 with VIDEO_NOT_FOUND', () => {
+    filter.catch(new VideoNotFoundException(), mockHost);
+
+    expect(mockStatus).toHaveBeenCalledWith(404);
+    expect(mockJson).toHaveBeenCalledWith({
+      statusCode: 404,
+      error: 'VIDEO_NOT_FOUND',
+      message: expect.any(String),
+    });
+  });
+
+  it('maps VideoAccessDeniedException to 403 with VIDEO_ACCESS_DENIED', () => {
+    filter.catch(new VideoAccessDeniedException(), mockHost);
+
+    expect(mockStatus).toHaveBeenCalledWith(403);
+    expect(mockJson).toHaveBeenCalledWith({
+      statusCode: 403,
+      error: 'VIDEO_ACCESS_DENIED',
+      message: expect.any(String),
+    });
+  });
+
+  it('maps VideoNotReadyException to 409 with VIDEO_NOT_READY', () => {
+    filter.catch(new VideoNotReadyException(), mockHost);
+
+    expect(mockStatus).toHaveBeenCalledWith(409);
+    expect(mockJson).toHaveBeenCalledWith({
+      statusCode: 409,
+      error: 'VIDEO_NOT_READY',
+      message: expect.any(String),
+    });
+  });
+
+  it('maps InvalidVideoStateException to 409 with INVALID_VIDEO_STATE', () => {
+    filter.catch(new InvalidVideoStateException(), mockHost);
+
+    expect(mockStatus).toHaveBeenCalledWith(409);
+    expect(mockJson).toHaveBeenCalledWith({
+      statusCode: 409,
+      error: 'INVALID_VIDEO_STATE',
+      message: expect.any(String),
+    });
+  });
+
+  it('maps UploadTooLargeException to 413 with UPLOAD_TOO_LARGE', () => {
+    filter.catch(new UploadTooLargeException(), mockHost);
+
+    expect(mockStatus).toHaveBeenCalledWith(413);
+    expect(mockJson).toHaveBeenCalledWith({
+      statusCode: 413,
+      error: 'UPLOAD_TOO_LARGE',
       message: expect.any(String),
     });
   });

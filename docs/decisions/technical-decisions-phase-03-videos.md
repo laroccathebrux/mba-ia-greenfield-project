@@ -114,6 +114,9 @@ Bucket is created idempotently on startup (`HeadBucket` → `CreateBucket` if ab
 
 **Decision:** A (presigned multipart upload; API issues presigned part URLs and orchestrates initiate/complete; bytes go client→storage directly)
 
+**Revisions:**
+- 2026-06-26 — Quantified upload limits (resolves AMB-1): hard maximum total size **10 GB** (`10 * 1024^3` bytes), rejected at `POST /videos` initiate when the declared `sizeBytes` exceeds it; multipart **part size 100 MB** → at most ~104 parts for a 10 GB file, well within S3's 10,000-part limit; minimum part size honored by S3 (≥5 MB for all but the last part). Rationale: `implement` needs concrete bounds to reject oversized uploads at initiate and to size/validate parts.
+
 ---
 
 ## TD-04: Worker Deployment Model

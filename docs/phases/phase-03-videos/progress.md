@@ -1,7 +1,7 @@
 # phase-03-videos — Progress
 
 **Status:** in progress
-**SIs:** 4/9 completed
+**SIs:** 5/9 completed
 
 ### SI-03.1 — Dependencies, Config Namespaces, and Docker Compose Infrastructure
 - **Status:** completed
@@ -19,7 +19,9 @@
 - **Observations:** VideoNotFound (404), VideoAccessDenied (403), VideoNotReady (409), InvalidVideoState (409), UploadTooLarge (413) extending DomainException; rendered by the existing filter.
 
 ### SI-03.4 — Storage Module and Service (S3/MinIO)
-- **Status:** pending
+- **Status:** completed
+- **Tests:** 5/5 passing (storage.service.integration-spec.ts — real MinIO)
+- **Observations:** S3Client (path-style, custom endpoint); onModuleInit ensureBucket with retry (MinIO startup race). Verified real multipart round-trip (createMultipartUpload → presigned UploadPart PUT via fetch → completeMultipartUpload), presigned GET serving `206 Partial Content` on a Range request, download presign `Content-Disposition: attachment`, and putObject/getObjectToFile byte round-trip.
 
 ### SI-03.5 — Unique URL Id Generator
 - **Status:** completed

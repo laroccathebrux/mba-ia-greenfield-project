@@ -1,7 +1,7 @@
 # phase-03-videos — Progress
 
 **Status:** in progress
-**SIs:** 5/9 completed
+**SIs:** 7/9 completed
 
 ### SI-03.1 — Dependencies, Config Namespaces, and Docker Compose Infrastructure
 - **Status:** completed
@@ -29,10 +29,14 @@
 - **Observations:** `generateUrlId()` — 11-char base62 from `node:crypto`; 10k generations, zero collisions. No dependency (CommonJS-safe).
 
 ### SI-03.6 — Upload Flow: Initiate, Presigned Parts, Complete (+ Queue Producer)
-- **Status:** pending
+- **Status:** completed
+- **Tests:** 12/12 unit (videos.service.spec.ts) + 5/5 integration (videos.service.integration-spec.ts, real DB+MinIO) + 9/9 e2e (videos.e2e-spec.ts, shared with SI-03.7)
+- **Observations:** VideosModule/Service/Controller; initiate (draft + multipart, oversize→413, url_id retry), presign parts (owner+draft guards), complete (→processing + BullMQ enqueue). ChannelsService.findByUserId added (via dataSource.getRepository, no constructor change). BullModule.forRootAsync wired in AppModule; storage/queue/video config loaded. e2e exercises a real presigned part PUT directly to MinIO (bytes never touch the API) + real job enqueue to Redis.
 
 ### SI-03.7 — Streaming, Download, and Video Lookup Endpoints
-- **Status:** pending
+- **Status:** completed
+- **Tests:** covered by videos.service.spec.ts (read methods), videos.service.integration-spec.ts (206 + attachment), and videos.e2e-spec.ts (302→206 stream, 302 attachment download, 409 not-ready, 404 unknown, public metadata)
+- **Observations:** Public stream/download endpoints redirect (302) to presigned GET URLs; storage serves Range/206. Only `ready` videos are served. GET /videos/:urlId returns public metadata + presigned thumbnail URL.
 
 ### SI-03.8 — Video Worker: FFmpeg Processing
 - **Status:** pending

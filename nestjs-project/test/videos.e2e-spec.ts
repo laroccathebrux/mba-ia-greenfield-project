@@ -70,11 +70,11 @@ describe('Videos (e2e)', () => {
     password = 'password123',
   ): Promise<{ accessToken: string; channelId: string }> {
     const authService = app.get(AuthService);
-    const mailService = (authService as unknown as { mailService: unknown })
-      .mailService;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mailService = (authService as any).mailService;
     let token = '';
     jest
-      .spyOn(mailService as never, 'sendConfirmationEmail')
+      .spyOn(mailService, 'sendConfirmationEmail')
       .mockImplementationOnce(async (_e: string, _n: string, t: string) => {
         token = t;
       });

@@ -1,7 +1,7 @@
 # phase-03-videos — Progress
 
 **Status:** in progress
-**SIs:** 7/9 completed
+**SIs:** 8/9 completed
 
 ### SI-03.1 — Dependencies, Config Namespaces, and Docker Compose Infrastructure
 - **Status:** completed
@@ -39,7 +39,9 @@
 - **Observations:** Public stream/download endpoints redirect (302) to presigned GET URLs; storage serves Range/206. Only `ready` videos are served. GET /videos/:urlId returns public metadata + presigned thumbnail URL.
 
 ### SI-03.8 — Video Worker: FFmpeg Processing
-- **Status:** pending
+- **Status:** completed
+- **Tests:** 4/4 unit (video-processing.service.spec.ts) + 2/2 integration (video-processing.service.integration-spec.ts, real MinIO+DB+FFmpeg with a generated sample video) + 1/1 worker boot (worker.module.integration-spec.ts)
+- **Observations:** FfmpegService (ffprobe duration/metadata, `generateThumbnail` → Buffer); VideoProcessingService (download → probe → thumbnail → ready; idempotent; markError); VideoProcessor (@Processor/WorkerHost; @OnWorkerEvent('failed') sets error after final attempt); WorkerModule (headless) + main.worker.ts (createApplicationContext). The boot test caught a real bug: WorkerModule must register Video+Channel+User in forFeature (Video→Channel→User relations) or the worker container fails to build entity metadata — fixed. Integration test generates a 2s `testsrc` mp4 via FFmpeg, processes it, and asserts duration≈2s, 320×240 metadata, and a non-empty thumbnail object in MinIO.
 
 ### SI-03.9 — App Integration, CLAUDE.md Videos Section, and Definition of Done
 - **Status:** pending

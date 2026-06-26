@@ -201,7 +201,10 @@ export class VideosController {
     description:
       'Redirects (302) to a short-lived presigned URL; the storage backend serves HTTP Range requests (206 Partial Content) so playback starts without a full download. Only ready videos are streamable.',
   })
-  @ApiResponse({ status: 302, description: 'Redirect to the presigned stream URL' })
+  @ApiResponse({
+    status: 302,
+    description: 'Redirect to the presigned stream URL',
+  })
   @ApiResponse({
     status: 404,
     description: 'Video not found',

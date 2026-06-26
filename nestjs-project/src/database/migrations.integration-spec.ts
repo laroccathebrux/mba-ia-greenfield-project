@@ -35,12 +35,11 @@ describe('Database migrations (integration)', () => {
 
     await dataSource.initialize();
 
-    await Promise.all([
-      ...MANAGED_TABLES.map((table) =>
-        dataSource.query(`DROP TABLE IF EXISTS "${table}" CASCADE`),
-      ),
-      dataSource.query(`DROP TABLE IF EXISTS "migrations" CASCADE`),
-    ]);
+    // Drop sequentially (NOT Promise.all) and in FK-dependency order: concurrent
+    // DROP TABLE ... CASCADE statements deadlock on the shared FK locks.
+    for (const table of [...MANAGED_TABLES, 'migrations']) {
+      await dataSource.query(`DROP TABLE IF EXISTS "${table}" CASCADE`);
+    }
     // Dropping tables does not drop their enum types — drop them too so the
     // CREATE TYPE statements in the migrations run cleanly regardless of any
     // pre-existing schema state (e.g., a prior `migration:run`).

@@ -2,7 +2,10 @@ import { DataSource, Repository } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Channel } from '../../channels/entities/channel.entity';
 import { Video, VideoStatus } from './video.entity';
-import { createTestDataSource } from '../../test/create-test-data-source';
+import {
+  cleanAllTables,
+  createTestDataSource,
+} from '../../test/create-test-data-source';
 
 describe('Video entity (integration)', () => {
   let dataSource: DataSource;
@@ -26,9 +29,7 @@ describe('Video entity (integration)', () => {
   });
 
   beforeEach(async () => {
-    await dataSource.query('DELETE FROM "videos"');
-    await dataSource.query('DELETE FROM "channels"');
-    await dataSource.query('DELETE FROM "users"');
+    await cleanAllTables(dataSource);
 
     const user = await userRepository.save(
       userRepository.create({
@@ -84,7 +85,12 @@ describe('Video entity (integration)', () => {
   it('round-trips jsonb metadata and bigint size_bytes', async () => {
     const saved = await videoRepository.save(
       buildVideo({
-        metadata: { codec: 'h264', width: 1920, height: 1080, bitRate: 4500000 },
+        metadata: {
+          codec: 'h264',
+          width: 1920,
+          height: 1080,
+          bitRate: 4500000,
+        },
         size_bytes: 9_000_000_000,
         duration_seconds: 120,
       }),

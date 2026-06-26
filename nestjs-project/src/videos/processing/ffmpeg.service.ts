@@ -18,7 +18,9 @@ export class FfmpegService {
   async probe(inputPath: string): Promise<ProbeResult> {
     const data = await new Promise<ffmpeg.FfprobeData>((resolve, reject) => {
       ffmpeg.ffprobe(inputPath, (err, metadata) =>
-        err ? reject(err) : resolve(metadata),
+        err
+          ? reject(err instanceof Error ? err : new Error(String(err)))
+          : resolve(metadata),
       );
     });
 

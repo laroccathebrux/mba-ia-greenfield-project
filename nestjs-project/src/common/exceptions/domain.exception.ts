@@ -69,11 +69,7 @@ export class VideoNotReadyException extends DomainException {
 
 export class InvalidVideoStateException extends DomainException {
   constructor() {
-    super(
-      'INVALID_VIDEO_STATE',
-      409,
-      'Invalid video state for this operation',
-    );
+    super('INVALID_VIDEO_STATE', 409, 'Invalid video state for this operation');
   }
 }
 

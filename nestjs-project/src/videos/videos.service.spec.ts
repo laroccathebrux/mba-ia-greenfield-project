@@ -71,9 +71,8 @@ describe('VideosService', () => {
         (id: string, ext: string) => `videos/${id}/original${ext}`,
       ),
       createMultipartUpload: jest.fn().mockResolvedValue('upload-1'),
-      getPresignedUploadPartUrl: jest.fn(
-        (_k: string, _u: string, n: number) =>
-          Promise.resolve(`https://minio/part/${n}`),
+      getPresignedUploadPartUrl: jest.fn((_k: string, _u: string, n: number) =>
+        Promise.resolve(`https://minio/part/${n}`),
       ),
       completeMultipartUpload: jest.fn().mockResolvedValue(undefined),
       getPresignedGetUrl: jest.fn().mockResolvedValue('https://minio/get'),
@@ -116,7 +115,9 @@ describe('VideosService', () => {
     });
 
     it('pre-registers a draft, creates a multipart upload, and returns ids', async () => {
-      channelsService.findByUserId.mockResolvedValue({ id: 'channel-1' } as never);
+      channelsService.findByUserId.mockResolvedValue({
+        id: 'channel-1',
+      } as never);
 
       const result = await service.initiateUpload('user-1', {
         title: 'My video',
@@ -140,7 +141,9 @@ describe('VideosService', () => {
   describe('presignParts', () => {
     it('returns one presigned URL per requested part for an owned draft', async () => {
       videoRepository.findOne.mockResolvedValue(makeVideo());
-      channelsService.findByUserId.mockResolvedValue({ id: 'channel-1' } as never);
+      channelsService.findByUserId.mockResolvedValue({
+        id: 'channel-1',
+      } as never);
 
       const parts = await service.presignParts('user-1', 'video-1', {
         totalParts: 3,
@@ -169,7 +172,9 @@ describe('VideosService', () => {
       videoRepository.findOne.mockResolvedValue(
         makeVideo({ status: VideoStatus.PROCESSING }),
       );
-      channelsService.findByUserId.mockResolvedValue({ id: 'channel-1' } as never);
+      channelsService.findByUserId.mockResolvedValue({
+        id: 'channel-1',
+      } as never);
       await expect(
         service.presignParts('user-1', 'video-1', { totalParts: 1 }),
       ).rejects.toThrow(InvalidVideoStateException);
@@ -179,7 +184,9 @@ describe('VideosService', () => {
   describe('completeUpload', () => {
     it('completes the multipart upload, sets processing, and enqueues a job', async () => {
       videoRepository.findOne.mockResolvedValue(makeVideo());
-      channelsService.findByUserId.mockResolvedValue({ id: 'channel-1' } as never);
+      channelsService.findByUserId.mockResolvedValue({
+        id: 'channel-1',
+      } as never);
 
       const result = await service.completeUpload('user-1', 'video-1', {
         parts: [{ partNumber: 1, eTag: 'etag-1' }],
@@ -230,7 +237,10 @@ describe('VideosService', () => {
 
     it('getDownloadUrl passes the original filename', async () => {
       videoRepository.findOne.mockResolvedValue(
-        makeVideo({ status: VideoStatus.READY, original_filename: 'movie.mp4' }),
+        makeVideo({
+          status: VideoStatus.READY,
+          original_filename: 'movie.mp4',
+        }),
       );
       await service.getDownloadUrl('urlid123456');
       expect(storageService.getPresignedGetUrl).toHaveBeenCalledWith(

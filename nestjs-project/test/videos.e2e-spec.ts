@@ -49,9 +49,8 @@ describe('Videos (e2e)', () => {
     storage = moduleFixture.get(StorageService);
     channelsService = moduleFixture.get(ChannelsService);
     queue = moduleFixture.get<Queue>(getQueueToken(VIDEO_QUEUE));
-    throttlerStorage = moduleFixture.get<ThrottlerStorageService>(
-      ThrottlerStorage,
-    );
+    throttlerStorage =
+      moduleFixture.get<ThrottlerStorageService>(ThrottlerStorage);
   });
 
   afterAll(async () => {
@@ -70,7 +69,7 @@ describe('Videos (e2e)', () => {
     password = 'password123',
   ): Promise<{ accessToken: string; channelId: string }> {
     const authService = app.get(AuthService);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const mailService = (authService as any).mailService;
     let token = '';
     jest
@@ -88,7 +87,9 @@ describe('Videos (e2e)', () => {
       .post('/auth/login')
       .send({ email, password });
 
-    const user = await dataSource.getRepository(User).findOneByOrFail({ email });
+    const user = await dataSource
+      .getRepository(User)
+      .findOneByOrFail({ email });
     const channel = await channelsService.findByUserId(user.id);
     return { accessToken: res.body.access_token, channelId: channel!.id };
   }

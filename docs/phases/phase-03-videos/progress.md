@@ -1,7 +1,7 @@
 # phase-03-videos — Progress
 
-**Status:** in progress
-**SIs:** 8/9 completed
+**Status:** completed
+**SIs:** 9/9 completed
 
 ### SI-03.1 — Dependencies, Config Namespaces, and Docker Compose Infrastructure
 - **Status:** completed
@@ -44,4 +44,6 @@
 - **Observations:** FfmpegService (ffprobe duration/metadata, `generateThumbnail` → Buffer); VideoProcessingService (download → probe → thumbnail → ready; idempotent; markError); VideoProcessor (@Processor/WorkerHost; @OnWorkerEvent('failed') sets error after final attempt); WorkerModule (headless) + main.worker.ts (createApplicationContext). The boot test caught a real bug: WorkerModule must register Video+Channel+User in forFeature (Video→Channel→User relations) or the worker container fails to build entity metadata — fixed. Integration test generates a 2s `testsrc` mp4 via FFmpeg, processes it, and asserts duration≈2s, 320×240 metadata, and a non-empty thumbnail object in MinIO.
 
 ### SI-03.9 — App Integration, CLAUDE.md Videos Section, and Definition of Done
-- **Status:** pending
+- **Status:** completed
+- **Tests:** Full DoD green — `npm test -- --runInBand`: 188/188 (31 suites); `npm run test:e2e`: 61/61 (4 suites); `npx tsc --noEmit`: exit 0; `npm run lint`: 0 errors (41 warnings, all `no-unsafe-argument`/`no-floating-promises` which the project config sets to `warn`).
+- **Observations:** Updated `nestjs-project/CLAUDE.md` with the Videos (Phase 03) section (module, endpoints, storage, queue/worker, Compose services, env, caveats). DoD fixes: (1) `test:e2e` now runs `--runInBand` — parallel e2e suites shared the DB and wiped each other's rows (documented requirement in CLAUDE.md); (2) `env.validation.integration-spec` base env now includes the new required `STORAGE_*` keys; (3) migrations test drops tables sequentially (FK CASCADE in `Promise.all` deadlocked once videos added another FK) + drops enum types; (4) `video.entity.integration-spec` uses the shared `cleanAllTables` (token tables reference users → FK violation otherwise); (5) eslint gained a test-file override relaxing the strict type-checked "unsafe" family (supertest/jest values are `any`) — the project's config never had one, so baseline `npm run lint` had never passed; source files stay fully strict (fixed `channels.service` typed error access and `ffmpeg.service` promise rejection). **Live end-to-end smoke through the real `worker` container:** a generated 2s sample video, uploaded to MinIO + enqueued to Redis, was consumed by the worker container and processed to `status='ready'` with `duration_seconds=2` and a thumbnail object — confirming queue → worker → FFmpeg → storage/DB over real infra.

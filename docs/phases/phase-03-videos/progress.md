@@ -1,0 +1,49 @@
+# phase-03-videos — Progress
+
+**Status:** completed
+**SIs:** 9/9 completed
+
+### SI-03.1 — Dependencies, Config Namespaces, and Docker Compose Infrastructure
+- **Status:** completed
+- **Tests:** no tests (infrastructure/config) — baseline suite remains green; infra verified up
+- **Observations:** Installed bullmq@5.79.1, @nestjs/bullmq@11.0.4, @aws-sdk/client-s3@3.1075.0, @aws-sdk/s3-request-presigner@3.1075.0, fluent-ffmpeg@2.1.3 (+ @types dev). Added storage/queue/video config namespaces + Joi vars + .env(.example). FFmpeg 5.1.9 installed in the shared image (Dockerfile.dev). Compose: added minio (healthy), redis (healthy), and worker services; api/worker depend on them. `start:worker` npm script (ts-node) added. Local git-ignored compose.override.yaml clears host port publishes (5432/3000/8025/6379/9000/9001) to avoid clashes with other containers on this machine — committed compose.yaml keeps standard published ports. Fixed MAIL_FROM quoting in .env.example.
+
+### SI-03.2 — Video Entity and Migration
+- **Status:** completed
+- **Tests:** 6/6 passing (video.entity.integration-spec.ts) + migrations.integration-spec.ts extended (2/2)
+- **Observations:** `videos` table + `videos_status_enum`; unique `url_id`, FK to channel, `channel_id` index. bigint `size_bytes` via number transformer; `metadata` jsonb. Dropped the redundant double unique index on `url_id` (kept the UNIQUE constraint). Migration `1782513228444-CreateVideos`. Hardened the migrations test to also `DROP TYPE IF EXISTS` the enum types in cleanup (DROP TABLE leaves the enum behind → CREATE TYPE collision) — fixes a latent fragility. Updated `cleanAllTables` to delete `videos` first (FK order).
+
+### SI-03.3 — Video Domain Exceptions
+- **Status:** completed
+- **Tests:** 11/11 passing (domain-exception.filter.spec.ts — 5 new video exceptions)
+- **Observations:** VideoNotFound (404), VideoAccessDenied (403), VideoNotReady (409), InvalidVideoState (409), UploadTooLarge (413) extending DomainException; rendered by the existing filter.
+
+### SI-03.4 — Storage Module and Service (S3/MinIO)
+- **Status:** completed
+- **Tests:** 5/5 passing (storage.service.integration-spec.ts — real MinIO)
+- **Observations:** S3Client (path-style, custom endpoint); onModuleInit ensureBucket with retry (MinIO startup race). Verified real multipart round-trip (createMultipartUpload → presigned UploadPart PUT via fetch → completeMultipartUpload), presigned GET serving `206 Partial Content` on a Range request, download presign `Content-Disposition: attachment`, and putObject/getObjectToFile byte round-trip.
+
+### SI-03.5 — Unique URL Id Generator
+- **Status:** completed
+- **Tests:** 4/4 passing (url-id.util.spec.ts)
+- **Observations:** `generateUrlId()` — 11-char base62 from `node:crypto`; 10k generations, zero collisions. No dependency (CommonJS-safe).
+
+### SI-03.6 — Upload Flow: Initiate, Presigned Parts, Complete (+ Queue Producer)
+- **Status:** completed
+- **Tests:** 12/12 unit (videos.service.spec.ts) + 5/5 integration (videos.service.integration-spec.ts, real DB+MinIO) + 9/9 e2e (videos.e2e-spec.ts, shared with SI-03.7)
+- **Observations:** VideosModule/Service/Controller; initiate (draft + multipart, oversize→413, url_id retry), presign parts (owner+draft guards), complete (→processing + BullMQ enqueue). ChannelsService.findByUserId added (via dataSource.getRepository, no constructor change). BullModule.forRootAsync wired in AppModule; storage/queue/video config loaded. e2e exercises a real presigned part PUT directly to MinIO (bytes never touch the API) + real job enqueue to Redis.
+
+### SI-03.7 — Streaming, Download, and Video Lookup Endpoints
+- **Status:** completed
+- **Tests:** covered by videos.service.spec.ts (read methods), videos.service.integration-spec.ts (206 + attachment), and videos.e2e-spec.ts (302→206 stream, 302 attachment download, 409 not-ready, 404 unknown, public metadata)
+- **Observations:** Public stream/download endpoints redirect (302) to presigned GET URLs; storage serves Range/206. Only `ready` videos are served. GET /videos/:urlId returns public metadata + presigned thumbnail URL.
+
+### SI-03.8 — Video Worker: FFmpeg Processing
+- **Status:** completed
+- **Tests:** 4/4 unit (video-processing.service.spec.ts) + 2/2 integration (video-processing.service.integration-spec.ts, real MinIO+DB+FFmpeg with a generated sample video) + 1/1 worker boot (worker.module.integration-spec.ts)
+- **Observations:** FfmpegService (ffprobe duration/metadata, `generateThumbnail` → Buffer); VideoProcessingService (download → probe → thumbnail → ready; idempotent; markError); VideoProcessor (@Processor/WorkerHost; @OnWorkerEvent('failed') sets error after final attempt); WorkerModule (headless) + main.worker.ts (createApplicationContext). The boot test caught a real bug: WorkerModule must register Video+Channel+User in forFeature (Video→Channel→User relations) or the worker container fails to build entity metadata — fixed. Integration test generates a 2s `testsrc` mp4 via FFmpeg, processes it, and asserts duration≈2s, 320×240 metadata, and a non-empty thumbnail object in MinIO.
+
+### SI-03.9 — App Integration, CLAUDE.md Videos Section, and Definition of Done
+- **Status:** completed
+- **Tests:** Full DoD green — `npm test -- --runInBand`: 188/188 (31 suites); `npm run test:e2e`: 61/61 (4 suites); `npx tsc --noEmit`: exit 0; `npm run lint`: 0 errors (41 warnings, all `no-unsafe-argument`/`no-floating-promises` which the project config sets to `warn`).
+- **Observations:** Updated `nestjs-project/CLAUDE.md` with the Videos (Phase 03) section (module, endpoints, storage, queue/worker, Compose services, env, caveats). DoD fixes: (1) `test:e2e` now runs `--runInBand` — parallel e2e suites shared the DB and wiped each other's rows (documented requirement in CLAUDE.md); (2) `env.validation.integration-spec` base env now includes the new required `STORAGE_*` keys; (3) migrations test drops tables sequentially (FK CASCADE in `Promise.all` deadlocked once videos added another FK) + drops enum types; (4) `video.entity.integration-spec` uses the shared `cleanAllTables` (token tables reference users → FK violation otherwise); (5) eslint gained a test-file override relaxing the strict type-checked "unsafe" family (supertest/jest values are `any`) — the project's config never had one, so baseline `npm run lint` had never passed; source files stay fully strict (fixed `channels.service` typed error access and `ffmpeg.service` promise rejection). **Live end-to-end smoke through the real `worker` container:** a generated 2s sample video, uploaded to MinIO + enqueued to Redis, was consumed by the worker container and processed to `status='ready'` with `duration_seconds=2` and a thumbnail object — confirming queue → worker → FFmpeg → storage/DB over real infra.

@@ -159,3 +159,50 @@ NestJS with standard module structure. Source lives in `src/`, compiled output i
 ## REST Conventions
 
 This is a RESTful API. All endpoints must follow standard REST conventions — correct HTTP methods, proper status codes, plural resource nouns, and consistent URL structure. Details are enforced via rules on controller files.
+
+## Videos (Phase 03)
+
+Phase 03 adds large-file video upload, background processing, and streaming. Source lives in `src/videos/` (module, controller, service, entity, DTOs, `processing/` worker code) and `src/storage/` (object-storage service). Decisions: `docs/decisions/technical-decisions-phase-03-videos.md`; plan: `docs/phases/phase-03-videos/`.
+
+### Components
+
+- **`VideosModule`** (`src/videos/`) — the `Video` entity (`videos` table), the upload/stream endpoints, and `VideosService` (business logic). Registers the BullMQ producer queue `video-processing`.
+- **`StorageModule` / `StorageService`** (`src/storage/`) — wraps the AWS SDK v3 `S3Client` for S3-compatible storage (MinIO locally). Configured path-style against `STORAGE_ENDPOINT`. Methods: multipart upload (`createMultipartUpload`, `getPresignedUploadPartUrl`, `completeMultipartUpload`, `abortMultipartUpload`), presigned GET (`getPresignedGetUrl`, with optional `attachment` disposition), `putObject`, `getObjectToFile`. `onModuleInit` creates the bucket idempotently (`ensureBucket`, with retry for MinIO startup).
+- **Video worker** (`src/videos/processing/`, `src/main.worker.ts`, `src/videos/worker.module.ts`) — a dedicated, headless Nest application context (no HTTP) that consumes the `video-processing` queue. `VideoProcessor` (`@Processor`/`WorkerHost`) delegates to `VideoProcessingService`, which downloads the original, runs `ffprobe` (duration + metadata) and generates a thumbnail via `fluent-ffmpeg`, uploads the thumbnail, and marks the video `ready` — or `error` (with `error_reason`) after BullMQ exhausts retries.
+
+### Endpoints (`/videos`)
+
+| Method & path | Auth | Purpose |
+|---|---|---|
+| `POST /videos` | Bearer (owner) | Initiate upload: pre-register a `draft` video on the caller's channel + start a multipart upload. Returns `{ id, urlId, uploadId, key, partSize }`. `413` if `sizeBytes` > 10 GB. |
+| `POST /videos/:id/parts` | Bearer (owner, draft) | Returns presigned `UploadPart` URLs; the client `PUT`s each part **directly to storage** (bytes never pass through the API). |
+| `POST /videos/:id/complete` | Bearer (owner, draft) | Finalize the multipart upload, set `processing`, enqueue the `video-processing` job. |
+| `GET /videos/:urlId` | Public | Public metadata (`title`, `status`, `durationSeconds`, `metadata`, `thumbnailUrl`). |
+| `GET /videos/:urlId/stream` | Public (ready) | `302` → presigned GET URL; storage serves HTTP Range / `206 Partial Content`. |
+| `GET /videos/:urlId/download` | Public (ready) | `302` → presigned GET URL with `Content-Disposition: attachment`. |
+
+Domain errors (rendered by the existing `DomainExceptionFilter` as `{ statusCode, error, message }`): `VIDEO_NOT_FOUND` (404), `VIDEO_ACCESS_DENIED` (403), `VIDEO_NOT_READY` (409), `INVALID_VIDEO_STATE` (409), `UPLOAD_TOO_LARGE` (413).
+
+### Upload strategy & status lifecycle
+
+10 GB uploads use **presigned multipart upload direct to storage** — the API only issues presigned part URLs and orchestrates initiate/complete; it never proxies the file bytes. Status lifecycle: `draft` (at initiate) → `processing` (at complete, job enqueued) → `ready` (worker success) / `error` (terminal failure). Only `ready` videos are streamable/downloadable. The unique public id is `url_id` (11-char base62 from `node:crypto`, UNIQUE column).
+
+### Storage layout
+
+Single bucket `STORAGE_BUCKET` (default `streamtube-videos`): originals at `videos/{videoId}/original{ext}`, thumbnails at `thumbnails/{videoId}.jpg`.
+
+### Docker Compose services (Phase 03)
+
+`compose.yaml` adds, alongside `nestjs-api`, `db`, and `mailpit`:
+
+- `minio` — S3-compatible object storage (API `9000`, console `9001`).
+- `redis` — BullMQ broker (`6379`).
+- `worker` — the video worker; same image as the API, runs `npm run start:worker` (ts-node → `src/main.worker.ts`). FFmpeg is installed in the shared image (`Dockerfile.dev`).
+
+Environment variables (see `.env.example`): `STORAGE_ENDPOINT`, `STORAGE_REGION`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`, `STORAGE_BUCKET`, `STORAGE_FORCE_PATH_STYLE`, `REDIS_HOST`, `REDIS_PORT`, `VIDEO_MAX_UPLOAD_BYTES`, `VIDEO_PART_SIZE_BYTES`, `VIDEO_PRESIGN_EXPIRY_SECONDS`.
+
+### Notes & caveats
+
+- **Presigned URL host.** Presigned URLs embed `STORAGE_ENDPOINT` (`minio:9000` inside the Docker network — reachable by the worker and in-container tests). In production, point `STORAGE_ENDPOINT` at the public storage/CDN host so browsers can reach the presigned URLs.
+- **Worker during tests.** The worker container consumes the real queue; stop it (`docker compose stop worker`) before running the e2e suite so upload-completion assertions are deterministic. Unit/integration suites mock the queue.
+- **Migration tests + enum types.** `DROP TABLE` does not drop a column's enum type. The migration-runner test drops `verification_tokens_type_enum` and `videos_status_enum` in setup; before running the full suite on a dirty DB, reset the schema (`DROP SCHEMA public CASCADE; CREATE SCHEMA public;`) then `npm run migration:run`.
